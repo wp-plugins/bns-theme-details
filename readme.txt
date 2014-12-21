@@ -3,7 +3,7 @@ Contributors: cais
 Donate link: http://buynowshop.com/
 Tags: themes, counter, plugin, widget, shortcode, details, download, author, update, rating
 Requires at least: 3.4
-Tested up to: 4.0
+Tested up to: 4.1
 Stable tag: 0.3
 License: GNU General Public License v2
 License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
