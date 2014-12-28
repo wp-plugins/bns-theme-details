@@ -3,8 +3,8 @@
 Plugin Name: BNS Theme Details
 Plugin URI: http://buynowshop.com/plugins/bns-theme-details
 Description: Displays theme specific details such as download count, last update, author, etc.
-Version: 0.3
-Text Domain: bns-td
+Version: 0.4
+Text Domain: bns-theme-details
 Author: Edward Caissie
 Author URI: http://edwardcaissie.com/
 License: GNU General Public License v2
@@ -13,6 +13,7 @@ License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
 /**
  * BNS Theme Details
+ *
  * This plugin can be used to display the recent download count of a theme, as
  * well as various other details such as the author and when it was last
  * updated. It also includes a link to the WordPress Theme repository if it
@@ -22,7 +23,7 @@ License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  * @link           http://buynowshop.com/plugins/bns-theme-details
  * @link           https://github.com/Cais/bns-theme-details
  * @link           http://wordpress.org/extend/plugins/bns-theme-details/
- * @version        0.3
+ * @version        0.4
  * @author         Edward Caissie <edward.caissie@gmail.com>
  * @copyright      Copyright (c) 2014, Edward Caissie
  *
@@ -46,7 +47,6 @@ License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  * The license for this software can also likely be found here:
  * http://www.gnu.org/licenses/gpl-2.0.html
  *
- * @todo           Find a better boolean check than what is currently being used
  * @todo           Make the download link a button?
  * @todo           Call theme details to add Author URI and/or Theme URI links?
  */
@@ -54,12 +54,33 @@ License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 /** Thanks to Samuel (Otto42) Wood for the code snippet inspiration. */
 class BNS_Theme_Details_Widget extends WP_Widget {
 
+	/**
+	 * Constructor
+	 *
+	 * The main show ...
+	 *
+	 * @package BNS_Theme_Details
+	 * @since   0.1
+	 *
+	 * @uses    BNS_Theme_Details_Widget::WP_Widget (factory)
+	 * @uses    BNS_Theme_Details_Widget::load_bnstd_widget
+	 * @uses    BNS_Theme_Details_Widget::bns_theme_details_shortcode
+	 * @uses    (GLOBAL) wp_version
+	 * @uses    __
+	 * @uses    add_action
+	 *
+	 * @version 0.4
+	 * @date    December 27, 2014
+	 * Added enqueue statement for scripts and styles
+	 * Added CONSTANTS for "DRY" purposes and customization paths
+	 * Updated `exit_message` if WordPress version is too low
+	 */
 	function __construct() {
 
 		/** Widget settings */
 		$widget_ops = array(
 			'classname'   => 'bns-theme-details',
-			'description' => __( 'Displays theme specific details such as download count, last update, author, etc.', 'bns-td' )
+			'description' => __( 'Displays theme specific details such as download count, last update, author, etc.', 'bns-theme-details' )
 		);
 		/** Widget control settings */
 		$control_ops = array(
@@ -72,20 +93,43 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		/**
 		 * Check installed WordPress version for compatibility
 		 *
-		 * @package              BNS_Theme_Details
-		 * @since                0.1
-		 *
-		 * @internal             Version 3.4 being used in reference to __return_null()
-		 *
-		 * @uses        (GLOBAL) wp_version
-		 * @uses                 __
+		 * @internal    Version 3.6 in reference to `shortcode_atts` filter option
+		 * @link        https://developer.wordpress.org/reference/functions/shortcode_atts/
 		 */
 		global $wp_version;
-		$exit_message = sprintf( __( 'BNS Theme Details requires WordPress version 3.4 or newer. %1$s', 'bns-td' ), '<a href="http://codex.wordpress.org/Upgrading_WordPress">' . __( 'Please Update!', 'bns-td' ) . '</a>' );
-		if ( version_compare( $wp_version, "3.4", "<" ) ) {
+		$exit_message = sprintf( __( 'BNS Theme Details requires WordPress version 3.6 or newer. %1$s', 'bns-theme-details' ), '<a href="http://codex.wordpress.org/Upgrading_WordPress">' . __( 'Please Update!', 'bns-theme-details' ) . '</a>' );
+		$exit_message .= '<br />';
+		$exit_message .= sprintf( __( 'In reference to the shortcode default attributes filter. See %1$s.', 'bns-theme-details' ), '<a href="https://developer.wordpress.org/reference/functions/shortcode_atts/">' . __( 'this link', 'bns-theme-details' ) . '</a>' );
+		if ( version_compare( $wp_version, "3.6", "<" ) ) {
 			exit( $exit_message );
 		}
 		/** End if = version compare */
+
+		/** Define some constants to save some keying */
+		if ( ! defined( 'BNSTD_URL' ) ) {
+			define( 'BNSTD_URL', plugin_dir_url( __FILE__ ) );
+		}
+		/** End if - not defined */
+		if ( ! defined( 'BNSTD_PATH' ) ) {
+			define( 'BNSTD_PATH', plugin_dir_path( __FILE__ ) );
+		}
+		/** End if - not defined */
+
+		/** Define location for BNS plugin customizations */
+		if ( ! defined( 'BNS_CUSTOM_PATH' ) ) {
+			define( 'BNS_CUSTOM_PATH', WP_CONTENT_DIR . '/bns-customs/' );
+		}
+		/** End if - not defined */
+		if ( ! defined( 'BNS_CUSTOM_URL' ) ) {
+			define( 'BNS_CUSTOM_URL', content_url( '/bns-customs/' ) );
+		}
+		/** End if - not defined */
+
+		/** Enqueue Scripts and Styles */
+		add_action( 'wp_enqueue_scripts', array(
+			$this,
+			'scripts_and_styles'
+		) );
 
 		/** Add widget */
 		add_action( 'widgets_init', array( $this, 'load_bnstd_widget' ) );
@@ -98,7 +142,71 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 			)
 		);
 
+	} /** End function - constructor */
+
+
+	/**
+	 * Enqueue Plugin Scripts and Styles
+	 *
+	 * Adds plugin stylesheet and allows for custom stylesheet to be added by end-user.
+	 *
+	 * @package BNS_Inline_Asides
+	 * @since   0.4
+	 *
+	 * @uses    (CONSTANT)   BNS_CUSTOM_PATH
+	 * @uses    (CONSTANT)   BNS_CUSTOM_URL
+	 * @uses    (CONSTANT)   BNSTD_PATH
+	 * @uses    (CONSTANT)   BNSTD_URL
+	 * @uses    BNS_Theme_Details_Widget::plugin_data
+	 * @uses    wp_enqueue_script
+	 * @uses    wp_enqueue_style
+	 */
+	function scripts_and_styles() {
+		/** @var object $bnstd_data - holds the plugin header data */
+		$bnstd_data = $this->plugin_data();
+
+		/** Enqueue Scripts */
+		/** Enqueue toggling script which calls jQuery as a dependency */
+		/** Placeholder code ... no JavaScript is implemented at this time */
+		/**  wp_enqueue_script( 'bnstd_script', BNSTD_URL . 'js/bnstd-script.js', array( 'jquery' ), $bnstd_data['Version'], true ); */
+
+		/** Enqueue Style Sheets */
+		wp_enqueue_style( 'BNSTD-Style', BNSTD_URL . 'css/bnstd-style.css', array(), $bnstd_data['Version'], 'screen' );
+
+		/** This location is recommended as upgrade safe */
+		if ( is_readable( BNS_CUSTOM_PATH . 'bnstd-custom-types.css' ) ) {
+			wp_enqueue_style( 'BNSTD-Custom-Styles', BNS_CUSTOM_URL . 'bnstd-custom-styles.css', array(), $bnstd_data['Version'], 'screen' );
+		}
+		/** End if - is readable */
+
 	}
+	/** End function - scripts and styles */
+
+
+	/**
+	 * Plugin Data
+	 *
+	 * Returns the plugin header data as an array
+	 *
+	 * @package    BNS_Theme_Details
+	 * @since      0.4
+	 *
+	 * @uses       get_plugin_data
+	 *
+	 * @return array
+	 */
+	function plugin_data() {
+
+		/** Call the wp-admin plugin code */
+		require_once( ABSPATH . '/wp-admin/includes/plugin.php' );
+		/** @var $plugin_data - holds the plugin header data */
+		$plugin_data = get_plugin_data( __FILE__ );
+
+		return $plugin_data;
+
+	}
+	/** End function - plugin data */
+
 
 	/**
 	 * Override widget method of class WP_Widget
@@ -110,11 +218,15 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @param    $instance
 	 *
 	 * @uses       BNS_Theme_Details::replace_spaces
-	 * @uses       BNS_Theme_Counter::theme_api_details
-	 * @uses       BNS_Theme_Counter::widget_title
+	 * @uses       BNS_Theme_Details::theme_api_details
+	 * @uses       BNS_Theme_Details::widget_title
 	 * @uses       apply_filters
 	 *
 	 * @return    void
+	 *
+	 * @version    0.4
+	 * @date       December 28, 2014
+	 * Change sanity check to ensure `$theme_slug` is not empty versus not `null`
 	 */
 	function widget( $args, $instance ) {
 		extract( $args );
@@ -132,9 +244,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		$main_options['show_description']       = $instance['show_description'];
 		$main_options['show_downloaded_count']  = $instance['show_downloaded_count'];
 		$main_options['use_download_link']      = $instance['use_download_link'];
+		$main_options['show_changelog']         = $instance['show_changelog'];
 
-		/** Sanity check - make sure theme slug is not null */
-		if ( null !== $theme_slug ) {
+		/** Sanity check - make sure theme slug is not empty / blank */
+		if ( ! empty( $theme_slug ) ) {
 
 			/** @var $before_widget string - define by theme */
 			echo $before_widget;
@@ -162,9 +275,7 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - is there a theme slug */
 
-	}
-
-	/** End function - widget */
+	} /** End function - widget */
 
 
 	/**
@@ -198,12 +309,11 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		$instance['show_description']       = $new_instance['show_description'];
 		$instance['show_downloaded_count']  = $new_instance['show_downloaded_count'];
 		$instance['use_download_link']      = $new_instance['use_download_link'];
+		$instance['show_changelog']         = $new_instance['show_changelog'];
 
 		return $instance;
 
-	}
-
-	/** End function - update */
+	} /** End function - update */
 
 
 	/**
@@ -224,15 +334,12 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses       wp_parse_args
 	 *
 	 * @return  void
-	 *
-	 * @todo       Get fancy with the widget title
 	 */
 	function form( $instance ) {
 
 		/** Set up some default widget settings */
 		$defaults = array(
-			'title'                  => __( 'Theme Details', 'bns-td' ),
-			/** 'title'                  => $this->widget_title( $instance['theme_slug'] ), */
+			'title'                  => __( 'Theme Details', 'bns-theme-details' ),
 			'theme_slug'             => $this->replace_spaces( wp_get_theme()->get_template() ),
 			/** The Main Options */
 			'use_screenshot_link'    => true,
@@ -244,110 +351,117 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 			'show_number_of_ratings' => true,
 			'show_description'       => false,
 			'show_downloaded_count'  => true,
-			'use_download_link'      => true
+			'use_download_link'      => true,
+			'show_changelog'         => false
 
 		);
 		$instance = wp_parse_args( ( array ) $instance, $defaults ); ?>
 
 		<p>
-			<label for="<?php echo $this->get_field_id( 'title' ); ?>"><?php _e( 'Title:', 'bns-td' ); ?></label>
+			<label for="<?php echo $this->get_field_id( 'title' ); ?>"><?php _e( 'Title:', 'bns-theme-details' ); ?></label>
 			<input class="widefat" id="<?php echo $this->get_field_id( 'title' ); ?>"
-				   name="<?php echo $this->get_field_name( 'title' ); ?>" value="<?php echo $instance['title']; ?>"
-				   style="width:100%;" />
+			       name="<?php echo $this->get_field_name( 'title' ); ?>" value="<?php echo $instance['title']; ?>"
+			       style="width:100%;" />
 		</p>
 
 		<p>
 			<label
-				for="<?php echo $this->get_field_id( 'theme_slug' ); ?>"><?php _e( 'Theme Slug', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'theme_slug' ); ?>"><?php _e( 'Theme Slug', 'bns-theme-details' ); ?></label>
 			<input class="widefat" id="<?php echo $this->get_field_id( 'theme_slug' ); ?>"
-				   name="<?php echo $this->get_field_name( 'theme_slug' ); ?>"
-				   value="<?php echo $instance['theme_slug']; ?>" style="width:100%;" />
+			       name="<?php echo $this->get_field_name( 'theme_slug' ); ?>"
+			       value="<?php echo $instance['theme_slug']; ?>" style="width:100%;" />
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['use_screenshot_link'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'use_screenshot_link' ); ?>"
-				   name="<?php echo $this->get_field_name( 'use_screenshot_link' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'use_screenshot_link' ); ?>"
+			       name="<?php echo $this->get_field_name( 'use_screenshot_link' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'use_screenshot_link' ); ?>"><?php _e( 'Use screenshot link?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'use_screenshot_link' ); ?>"><?php _e( 'Use screenshot link?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_name'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_name' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_name' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_name' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_name' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_name' ); ?>"><?php _e( 'Show name?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_name' ); ?>"><?php _e( 'Show name?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_author'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_author' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_author' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_author' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_author' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_author' ); ?>"><?php _e( 'Show author?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_author' ); ?>"><?php _e( 'Show author?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_last_updated'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_last_updated' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_last_updated' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_last_updated' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_last_updated' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_last_updated' ); ?>"><?php _e( 'Show last updated?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_last_updated' ); ?>"><?php _e( 'Show last updated?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_current_version'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_current_version' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_current_version' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_current_version' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_current_version' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_current_version' ); ?>"><?php _e( 'Show current version?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_current_version' ); ?>"><?php _e( 'Show current version?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_rating'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_rating' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_rating' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_rating' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_rating' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_rating' ); ?>"><?php _e( 'Show rating?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_rating' ); ?>"><?php _e( 'Show rating?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_number_of_ratings'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_number_of_ratings' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_number_of_ratings' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_number_of_ratings' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_number_of_ratings' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_number_of_ratings' ); ?>"><?php _e( 'Show number of ratings?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_number_of_ratings' ); ?>"><?php _e( 'Show number of ratings?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_description'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_description' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_description' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_description' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_description' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_description' ); ?>"><?php _e( 'Show description?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_description' ); ?>"><?php _e( 'Show description?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_downloaded_count'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'show_downloaded_count' ); ?>"
-				   name="<?php echo $this->get_field_name( 'show_downloaded_count' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'show_downloaded_count' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_downloaded_count' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'show_downloaded_count' ); ?>"><?php _e( 'Show downloaded count?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'show_downloaded_count' ); ?>"><?php _e( 'Show downloaded count?', 'bns-theme-details' ); ?></label>
 		</p>
 
 		<p>
 			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['use_download_link'], true ); ?>
-				   id="<?php echo $this->get_field_id( 'use_download_link' ); ?>"
-				   name="<?php echo $this->get_field_name( 'use_download_link' ); ?>" />
+			       id="<?php echo $this->get_field_id( 'use_download_link' ); ?>"
+			       name="<?php echo $this->get_field_name( 'use_download_link' ); ?>" />
 			<label
-				for="<?php echo $this->get_field_id( 'use_download_link' ); ?>"><?php _e( 'Use download link?', 'bns-td' ); ?></label>
+				for="<?php echo $this->get_field_id( 'use_download_link' ); ?>"><?php _e( 'Use download link?', 'bns-theme-details' ); ?></label>
+		</p>
+
+		<p>
+			<input class="checkbox" type="checkbox" <?php checked( ( bool ) $instance['show_changelog'], true ); ?>
+			       id="<?php echo $this->get_field_id( 'show_changelog' ); ?>"
+			       name="<?php echo $this->get_field_name( 'show_changelog' ); ?>" />
+			<label
+				for="<?php echo $this->get_field_id( 'show_changelog' ); ?>"><?php _e( 'Show the changelog?', 'bns-theme-details' ); ?></label>
 		</p>
 
 	<?php
-	}
-
-	/** End function - form */
+	} /** End function - form */
 
 
 	/**
@@ -361,9 +475,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @return  void
 	 */
 	function load_bnstd_widget() {
+
 		register_widget( 'BNS_Theme_Details_Widget' );
-	}
-	/** End function - load bnstd widget */
+
+	} /** End function - load bnstd widget */
 
 
 	/**
@@ -381,6 +496,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses       wp_get_theme->get_template
 	 *
 	 * @return  string
+	 *
+	 * @version    0.4
+	 * @date       December 27, 2014
+	 * Corrected filter reference to indicate `bns_theme_details`
 	 */
 	function bns_theme_details_shortcode( $atts ) {
 
@@ -404,9 +523,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 					'show_number_of_ratings' => true,
 					'show_description'       => true,
 					'show_downloaded_count'  => true,
-					'use_download_link'      => true
+					'use_download_link'      => true,
+					'show_changelog'         => true
 
-				), $atts, 'bns_theme_counter'
+				), $atts, 'bns_theme_details'
 			),
 			$args = array(
 				/** clear variables defined by theme for widgets */
@@ -424,28 +544,36 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 
 		return $bns_theme_details_content;
 
-	}
+	} /** End function - shortcode */
 
 
 	/**
 	 * Theme Details
-	 * The main collection of the details related to the theme as called from
-	 * the WordPress Theme API
 	 *
-	 * @package    BNS_Theme_Details
-	 * @since      0.1
+	 * The main collection of the details related to the theme as called from
+	 * the WordPress Theme API and derived elsewhere
+	 *
+	 * @package     BNS_Theme_Details
+	 * @sub-package Output
+	 * @since       0.1
 	 *
 	 * @param $theme_slug   - primary data point
 	 * @param $main_options - output options
 	 *
-	 * @uses       BNS_Theme_Details_Widget::display_screenshot
-	 * @uses       BNS_Theme_Details_Widget::display_name_and_author
-	 * @uses       BNS_Theme_Details_Widget::display_updated_and_version
-	 * @uses       BNS_Theme_Details_Widget::display_rating_and_voters
-	 * @uses       BNS_Theme_Details_Widget::display_download_count
-	 * @uses       BNS_Theme_Details_Widget::display_download_link
-	 * @uses       _e
-	 * @uses       themes_api
+	 * @uses        BNS_Theme_Details_Widget::changelog
+	 * @uses        BNS_Theme_Details_Widget::display_download_count
+	 * @uses        BNS_Theme_Details_Widget::display_download_link
+	 * @uses        BNS_Theme_Details_Widget::display_name_and_author
+	 * @uses        BNS_Theme_Details_Widget::display_rating_and_voters
+	 * @uses        BNS_Theme_Details_Widget::display_screenshot
+	 * @uses        BNS_Theme_Details_Widget::display_updated_and_version
+	 * @uses        _e
+	 * @uses        themes_api
+	 *
+	 * @version     0.4
+	 * @date        December 28, 2014
+	 * Added `changelog` to output
+	 * Switched order of "Theme Name and Author" with the "Screenshot"
 	 */
 	function theme_api_details( $theme_slug, $main_options ) {
 		/** Pull in the Theme API file */
@@ -491,42 +619,46 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		/** Sanity check - make sure there is a value for the name */
 		if ( isset( $name ) ) {
 
-			echo $this->display_screenshot( $main_options, $screenshot_url );
-
 			echo $this->display_name_and_author( $main_options, $name, $author );
+
+			echo $this->display_screenshot( $main_options, $screenshot_url );
 
 			echo $this->display_updated_and_version( $main_options, $last_updated, $current_version );
 
 			echo $this->display_rating_and_voters( $main_options, $rating, $number_of_ratings );
 
 			echo $this->display_description( $main_options, $description );
-			// echo $description;
 
 			echo $this->display_download_count( $main_options, $count );
 
 			echo $this->display_download_link( $main_options, $download_link );
 
+			echo $this->changelog( $main_options, $current_version, $name );
+
 		} else {
 
-			_e( 'Are you using a theme from the WordPress Theme repository?', 'bns-td' );
+			_e( 'Are you using a theme from the WordPress Theme repository?', 'bns-theme-details' );
 
 		}
 		/** End if - is count set */
-	}
-	/** End function - theme counter shortcode */
+
+	} /** End function - theme api details */
 
 
 	/**
 	 * Widget Title
+	 *
 	 * Returns the widget title based on the theme slug used for the output
 	 *
 	 * @package        BNS_Theme_Details
-	 * @sub-package    Output
 	 * @since          0.1
+	 *
+	 * @internal       Not currently used ... to be removed?
 	 *
 	 * @param $theme_slug
 	 *
 	 * @uses           __
+	 * @uses           apply_filters
 	 * @uses           wp_get_theme
 	 * @uses           wp_get_theme->get
 	 * @uses           wp_get_theme->get_template
@@ -539,47 +671,16 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 			? wp_get_theme()->get_template()
 			: wp_get_theme( $theme_slug )->get( 'Name' );
 
-		$title = '<span class="bnstd-widget-title">' . sprintf( __( '%1$s Download Counter', 'bns-td' ), $theme_name ) . '</span>';
+		$title = '<span class="bnstd-widget-title">' . sprintf( __( '%1$s Details', 'bns-theme-details' ), $theme_name ) . '</span>';
 
 		return apply_filters( 'bnstd_widget_title', $title );
 
-	}    /** End function - widget title */
+	} /** End function - widget title */
 
-	/**
-	 * Display Screenshot
-	 * Returns the screenshot URL in its own DIV ... or returns null.
-	 *
-	 * @package        BNS_Theme_Details
-	 * @sub-package    Output
-	 * @since          0.1
-	 *
-	 * @param $main_options
-	 * @param $screenshot_url
-	 *
-	 * @return null|string
-	 */
-	function display_screenshot( $main_options, $screenshot_url ) {
-
-		/** Check if the screenshot link is set and is to be used */
-		if ( isset( $screenshot_url ) && ( true === $main_options['use_screenshot_link'] ) ) {
-
-			$output = '<div class="bnstd-screenshot aligncenter">';
-			$output .= '<img src="' . $screenshot_url . '" />';
-			$output .= '</div>';
-
-			return apply_filters( 'bnstd_display_screenshot', $output );
-
-		} else {
-
-			return apply_filters( 'bnstd_display_screenshot', __return_null() );
-
-		}
-		/** End if - use screenshot link */
-
-	} /** End function - display screenshot */
 
 	/**
 	 * Display Name and Author
+	 *
 	 * Returns the theme name and the theme author if they are set; or returns
 	 * null if they are not set
 	 *
@@ -596,6 +697,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses           apply_filters
 	 *
 	 * @return null|string
+	 *
+	 * @version        0.4
+	 * @date           December 28, 2014
+	 * Added more specificity to the output for more finely tuned styles
 	 */
 	function display_name_and_author( $main_options, $name, $author ) {
 
@@ -603,16 +708,16 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		 * Make sure there is a theme name set (redundant but also consistent)
 		 * and it is to be shown
 		 */
-		if ( isset( $name ) && ( true === $main_options['show_name'] ) ) {
+		if ( isset( $name ) && ( true == $main_options['show_name'] ) ) {
 
-			$output = '<div class="bnstd-theme-name">' . sprintf( __( 'Theme: %1$s', 'bns-td' ), $name ) . '</div>';
+			$output = '<div class="bnstd-theme-name">' . sprintf( __( '%1$s %2$s', 'bns-theme-details' ), sprintf( '<span class="bnstd-theme-label">%1$s</span>', __( 'Theme:', 'bns-theme-details' ) ), $name ) . '</div>';
 
 			/** Make sure there is an author name set and it is to be shown */
-			if ( isset( $author ) && ( true === $main_options['show_author'] ) ) {
+			if ( isset( $author ) && ( true == $main_options['show_author'] ) ) {
 
 				$output = '<div class="bnstd-theme-name-and-author">'
-						  . sprintf( __( 'Theme: %1$s by %2$s', 'bns-td' ), '<span class="bnstd-theme-name">' . $name . '</span>', '<span class="bnstd-theme-author">' . $author . '</span>' )
-						  . '</div>';
+				          . sprintf( __( '%1$s %2$s %3$s', 'bns-theme-details' ), sprintf( '<span class="bnstd-theme-label">%1$s</span>', __( 'Theme:', 'bns-theme-details' ) ), '<span class="bnstd-theme-name">' . $name . '</span>', sprintf( '<span class="bnstd-theme-by-author">by %1$s</span>', '<span class="bnstd-theme-author">' . $author . '</span>' ) )
+				          . '</div>';
 
 				return apply_filters( 'bnstd_display_name_and_author', $output );
 
@@ -622,9 +727,9 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 
 			return apply_filters( 'bnstd_display_name_only', $output );
 
-		} elseif ( ! ( true === $main_options['show_name'] ) && ( true === $main_options['show_author'] ) ) {
+		} elseif ( ! ( true == $main_options['show_name'] ) && ( true == $main_options['show_author'] ) ) {
 
-			$output = '<div class="bnstd-theme-author">' . sprintf( __( 'By %1$s', 'bns-td' ), $author ) . '</div>';
+			$output = '<div class="bnstd-theme-by-author">' . sprintf( __( 'By %1$s', 'bns-theme-details' ), '<span class="bnstd-theme-author">' . $author . '</span>' ) . '</div>';
 
 			return apply_filters( 'bnstd_display_author_only', $output );
 
@@ -635,12 +740,54 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - theme name is set */
 
-	}
-	/** End function - display name and author */
+	} /** End function - display name and author */
+
+
+	/**
+	 * Display Screenshot
+	 *
+	 * Returns the screenshot URL in its own DIV ... or returns null.
+	 *
+	 * @package        BNS_Theme_Details
+	 * @sub-package    Output
+	 * @since          0.1
+	 *
+	 * @uses           __return_null
+	 * @uses           apply_filters
+	 *
+	 * @param $main_options
+	 * @param $screenshot_url
+	 *
+	 * @return null|string
+	 *
+	 * @version        0.4
+	 * @date           December 27, 2014
+	 * Wrapped `<img />` tag in a `<p />` tag for better display compatibility
+	 */
+	function display_screenshot( $main_options, $screenshot_url ) {
+
+		/** Check if the screenshot link is set and is to be used */
+		if ( isset( $screenshot_url ) && ( true == $main_options['use_screenshot_link'] ) ) {
+
+			$output = '<div class="bnstd-screenshot aligncenter">';
+			$output .= '<p><img src="' . $screenshot_url . '" /></p>';
+			$output .= '</div>';
+
+			return apply_filters( 'bnstd_display_screenshot', $output );
+
+		} else {
+
+			return apply_filters( 'bnstd_display_screenshot', __return_null() );
+
+		}
+		/** End if - use screenshot link */
+
+	} /** End function - display screenshot */
 
 
 	/**
 	 * Display Updated and Version
+	 *
 	 * Returns the last updated date and the current theme version if the are
 	 * set or  null if they are not set
 	 *
@@ -657,22 +804,27 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses           apply_filters
 	 *
 	 * @return null|string
+	 *
+	 * @version        0.4
+	 * @date           December 28, 2014
+	 * Added more specificity to the output for more finely tuned styles
 	 */
 	function display_updated_and_version( $main_options, $last_updated, $current_version ) {
 
 		/** Make sure the last updated is set and it is to be shown */
-		if ( isset( $last_updated ) && ( true === $main_options['show_last_updated'] ) ) {
+		if ( isset( $last_updated ) && ( true == $main_options['show_last_updated'] ) ) {
 
-			$output = '<div class="bnstd-updated">' . sprintf( __( 'Last updated: %1$s', 'bns-td' ), $last_updated ) . '</div';
+			$output = '<div class="bnstd-updated">' . sprintf( __( 'Last updated: %1$s', 'bns-theme-details' ), $last_updated ) . '</div>';
 
 			/** Make sure the current version is set and it is to be shown */
-			if ( isset( $current_version ) && ( true === $main_options['show_current_version'] ) ) {
+			if ( isset( $current_version ) && ( true == $main_options['show_current_version'] ) ) {
 
 				$output = '<div class="bnstd-updated-and-version">'
-						  . sprintf(
-						__( 'Last updated: %1$s %2$s', 'bns-td' ),
+				          . sprintf(
+						__( '%1$s %2$s %3$s', 'bns-td' ),
+						'<span class="bnstd-updated-label">Last updated:</span>',
 						'<span class="bnstd-updated">' . $last_updated . '</span>',
-						'<span class="bnstd-version">' . sprintf( __( '(version %1$s)', 'bns-td' ), $current_version ) . '</span>'
+						'<span class="bnstd-version">' . sprintf( __( '(%1$s %2$s)', 'bns-theme-details' ), '<span class="bnstd-version-label">version</span>', $current_version ) . '</span>'
 					) . '</div>';
 
 				return apply_filters( 'bnstd_display_updated_and_version', $output );
@@ -683,9 +835,9 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 
 			return apply_filters( 'bnstd_display_updated_only', $output );
 
-		} elseif ( ! ( true === $main_options['show_last_updated'] ) && ( true === $main_options['show_current_version'] ) ) {
+		} elseif ( ! ( true == $main_options['show_last_updated'] ) && ( true == $main_options['show_current_version'] ) ) {
 
-			$output = '<div class="bnstd-version">' . sprintf( __( 'Current version: %1$s', 'bns-td' ), $current_version ) . '</div>';
+			$output = '<div class="bnstd-version">' . sprintf( __( '%1$s %2$s', 'bns-theme-details' ), '<span class="bnstd-version-label">Current version:</span>', $current_version ) . '</div>';
 
 			return apply_filters( 'bnstd_display_version_only', $output );
 
@@ -696,12 +848,12 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - last updated is set */
 
-	}
-	/** End function - display updated and version */
+	} /** End function - display updated and version */
 
 
 	/**
 	 * Display Ratings and Voters
+	 *
 	 * Return the star rating of the theme and the number of voters if set, or
 	 * retrun null if they are not
 	 *
@@ -718,21 +870,32 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses           apply_filters
 	 *
 	 * @return null|string
+	 *
+	 * @version        0.4
+	 * @date           December 28, 2014
+	 * Added more specificity to the output for more finely tuned styles
 	 */
 	function display_rating_and_voters( $main_options, $rating, $number_of_ratings ) {
 
 		/** Check if rating is set an if it should be shown */
-		if ( isset( $rating ) && ( true === $main_options['show_rating'] ) ) {
+		if ( isset( $rating ) && ( true == $main_options['show_rating'] ) ) {
 
-			$output = '<div class="bnstd-rating">' . sprintf( __( 'Average Rating: %1$s stars', 'bns-td' ), $rating ) . '</div>';
+			$output = '<div class="bnstd-rating">' . sprintf(
+					__( '%1$s %2$s %3$s', 'bns-theme-details' ),
+					'<span class="bnstd-rating-label">Average Rating:</span>',
+					'<span class="bnstd-rating">' . $rating . '</span>',
+					'<span class="bnstd-rating-stars">stars</span>'
+				) . '</div>';
 
 			/** Check if number of ratings is set and if it should be shown */
-			if ( isset( $number_of_ratings ) && ( true === $main_options['show_number_of_ratings'] ) ) {
+			if ( isset( $number_of_ratings ) && ( true == $main_options['show_number_of_ratings'] ) ) {
 
 				$output = '<div class="bnstd-rating-and-voters">' . sprintf(
-						__( 'Average Rating: %1$s stars %2$s', 'bns-td' ),
+						__( '%1$s %2$s %3$s %4$s', 'bns-theme-details' ),
+						'<span class="bnstd-rating-label">Average Rating:</span>',
 						'<span class="bnstd-rating">' . $rating . '</span>',
-						'<span class="bnstd-voters">' . sprintf( __( '(by %1$s voters)', 'bns-td' ), $number_of_ratings ) . '</span>'
+						'<span class="bnstd-rating-stars">stars</span>',
+						'<span class="bnstd-voters">' . sprintf( __( '(by %1$s voters)', 'bns-theme-details' ), $number_of_ratings ) . '</span>'
 					) . '</div>';
 
 				return apply_filters( 'bnstd_display_rating_and_voters', $output );
@@ -750,12 +913,12 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - rating is set */
 
-	}
-	/** End function - display rating and voters */
+	} /** End function - display rating and voters */
 
 
 	/**
 	 * Display Download Count
+	 *
 	 * Returns the download count
 	 *
 	 * @package        BNS_Theme_Details
@@ -770,13 +933,17 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	 * @uses           apply_filters
 	 *
 	 * @return string
+	 *
+	 * @version        0.4
+	 * @date           December 28, 2014
+	 * Added more specificity to the output for more finely tuned styles
 	 */
 	function display_download_count( $main_options, $count ) {
 
 		/** Check if the count is set and is to be shown */
-		if ( isset( $count ) && ( true === $main_options['show_downloaded_count'] ) ) {
+		if ( isset( $count ) && ( true == $main_options['show_downloaded_count'] ) ) {
 
-			$output = '<div class="bnstd-download-count">' . sprintf( __( 'Total downloads: %1$s', 'bns-td' ), $count ) . '</div>';
+			$output = '<div class="bnstd-download-count">' . sprintf( __( '%1$s %2$s', 'bns-theme-details' ), '<span class="bnstd-download-count-label">Total downloads:</span>', $count ) . '</div>';
 
 			return apply_filters( 'bnstd_display_download_count', $output );
 
@@ -787,12 +954,12 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - show count */
 
-	}
-	/** End function - display download count */
+	} /** End function - display download count */
 
 
 	/**
 	 * Display Description
+	 *
 	 * Returns the theme description
 	 *
 	 * @package        BNS_Theme_Details
@@ -811,7 +978,7 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	function display_description( $main_options, $description ) {
 
 		/** Check if the count is set and is to be shown */
-		if ( isset( $description ) && ( true === $main_options['show_description'] ) ) {
+		if ( isset( $description ) && ( true == $main_options['show_description'] ) ) {
 
 			$output = '<div class="bnstd-description">' . $description . '</div>';
 
@@ -824,12 +991,12 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - show description */
 
-	}
-	/** End function - display description */
+	} /** End function - display description */
 
 
 	/**
 	 * Display Download Link
+	 *
 	 * Return the download link if it is set or return null if it is not
 	 *
 	 * @package        BNS_Theme_Details
@@ -848,10 +1015,10 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 	function display_download_link( $main_options, $download_link ) {
 
 		/** Check if download link is set and if it should be shown */
-		if ( isset( $download_link ) && ( true === $main_options['use_download_link'] ) ) {
+		if ( isset( $download_link ) && ( true == $main_options['use_download_link'] ) ) {
 
 			$output = '<div class="bnstd-download-link">'
-					  . sprintf( __( 'Download your copy %1$s', 'bns-td' ), '<a class="bnstd-download-link-url" href="' . $download_link . '">' . __( 'here', 'bns-td' ) . '</a>' ) . '</div>';
+			          . sprintf( __( '%1$s %2$s', 'bns-theme-details' ), '<span class="bnstd-download-link-label">Download your copy:</span>', '<a class="bnstd-download-link-url" href="' . $download_link . '">' . __( 'click here', 'bns-theme-details' ) . '</a>' ) . '</div>';
 
 			return apply_filters( 'bnstd_display_download_link', $output );
 
@@ -862,12 +1029,124 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		}
 		/** End if - download link is set */
 
-	}
-	/** End function - display download link */
+	} /** End function - display download link */
+
+
+	/**
+	 * Changelog
+	 *
+	 * @package     BNS_Theme_Details
+	 * @sub-package Output
+	 * @since       0.4
+	 *
+	 * @uses        BNS_Theme_Details_Widget::replace_spaces
+	 * @uses        __
+	 * @uses        apply_filters
+	 * @uses        wp_get_theme
+	 * @uses        wp_kses_post
+	 * @uses        wp_remote_get
+	 *
+	 * @internal    Uses BNS Inline Asides to minimize the display by default
+	 * @link        https://wordpress.org/plugins/bns-inline-asides
+	 *
+	 * @param $main_options
+	 * @param $current_version
+	 * @param $name
+	 *
+	 * @return mixed|null|void
+	 */
+	function changelog( $main_options, $current_version, $name ) {
+
+		$changelog_lines = null;
+
+		if ( true == $main_options['show_changelog'] ) {
+
+			/** Spice things up by leveraging BNS Inline Asides */
+			if ( ! is_plugin_active( 'bns-inline-asides/bns-inline-asides.php' ) ) {
+
+				echo sprintf( '<div class="bnstd-changelog-label">%1$s</div>', __( 'Changelog:', 'bns-theme-details' ) );
+
+			}
+			/** End if - is plugin active */
+
+			$theme_slug     = $this->replace_spaces( wp_get_theme( $name )->get_template() );
+			$changelog_path = wp_remote_get( 'https://themes.svn.wordpress.org/' . $theme_slug . '/' . $current_version . '/changelog.txt' );
+
+			$output  = ! is_wp_error( $changelog_path ) && ! empty( $changelog_path['body'] ) ? $changelog_path['body'] : null;
+			$changes = (array) preg_split( '~[\r\n]+~', $output );
+
+			/** @var string $changelog_lines - begin output string */
+			$changelog_lines = '<div class="bnstd_changelog">';
+
+			$ul = false;
+
+			foreach ( $changes as $index => $line ) {
+
+				if ( preg_match( '~^=\s*(.*)\s*=$~i', $line ) ) {
+
+					if ( $ul ) {
+						$changelog_lines .= '</ul><div style="clear: left;"></div>';
+					}
+					/** End if - unordered list created */
+
+					// $changelog_lines .= '<hr/>';
+
+				}
+				/** End if - non-blank line */
+
+				/** @var string $return_value - body of message */
+				$return_value = '';
+
+				if ( preg_match( '~^\s*\*\s*~', $line ) ) {
+
+					if ( ! $ul ) {
+						$return_value = '<ul">';
+						$ul           = true;
+					}
+					/** End if - unordered list not started */
+
+					$line = preg_replace( '~^\s*\*\s*~', '', htmlspecialchars( $line ) );
+					$return_value .= '<li style=" ' . ( $index % 2 == 0 ? 'clear: left;' : '' ) . '">' . $line . '</li>';
+
+				} else {
+
+					if ( $ul ) {
+						$return_value = '</ul><div style="clear: left;"></div>';
+						$return_value .= '<p>' . $line . '</p>';
+						$ul = false;
+					} else {
+						$return_value .= '<p>' . $line . '</p>';
+					}
+					/** End if - unordered list started */
+
+				}
+				/** End if - non-blank line */
+
+				$changelog_lines .= wp_kses_post( preg_replace( '~\[([^\]]*)\]\(([^\)]*)\)~', '<a href="${2}">${1}</a>', $return_value ) );
+
+			}
+			/** End foreach - line parsing */
+
+			$changelog_lines .= '</div>';
+
+			/** Spice things up by leveraging BNS Inline Asides */
+			if ( is_plugin_active( 'bns-inline-asides/bns-inline-asides.php' ) ) {
+
+				$changelog_lines = do_shortcode( '[aside type=changelog status=closed]' . $changelog_lines . '[/aside]' );
+
+			}
+			/** End if - is plugin active */
+
+		}
+
+		return apply_filters( 'bnstd_changelog_output', $changelog_lines );
+
+	} /** End function - changelog */
 
 
 	/**
 	 * Replace Spaces
+	 *
 	 * Takes a string, changes it to lower case and replaces the spaces with a
 	 * single hyphen by default
 	 *
@@ -896,13 +1175,133 @@ class BNS_Theme_Details_Widget extends WP_Widget {
 		return $new_text;
 
 	}
-
 	/** End function - replace spaces */
 
 
 }
 
-/** End class - theme counter */
+/** End class - theme details */
 
 /** @var object $bns_td - create a new instance of the class */
 $bns_td = new BNS_Theme_Details_Widget();
+
+
+/**
+ * BNS Theme Details In Plugin Update Message
+ *
+ * @package BNS_Theme_Details
+ * @since   0.4
+ *
+ * @uses    get_transient
+ * @uses    is_wp_error
+ * @uses    set_transient
+ * @uses    wp_kses_post
+ * @uses    wp_remote_get
+ *
+ * @param $args
+ */
+function BNS_Theme_Details_in_plugin_update_message( $args ) {
+
+	require_once( ABSPATH . '/wp-admin/includes/plugin.php' );
+	$bnstd_data = get_plugin_data( __FILE__ );
+
+	$transient_name = 'bnstd_upgrade_notice_' . $args['Version'];
+	if ( false == ( $upgrade_notice = get_transient( $transient_name ) ) ) {
+
+		/** @var string $response - get the readme.txt file from WordPress */
+		$response = wp_remote_get( 'https://plugins.svn.wordpress.org/bns-theme-details/trunk/readme.txt' );
+
+		if ( ! is_wp_error( $response ) && ! empty( $response['body'] ) ) {
+			$matches = null;
+		}
+		$regexp         = '~==\s*Changelog\s*==\s*=\s*(.*)\s*=(.*)(=\s*' . preg_quote( $bnstd_data['Version'] ) . '\s*=|$)~Uis';
+		$upgrade_notice = '';
+
+		if ( preg_match( $regexp, $response['body'], $matches ) ) {
+			$version = trim( $matches[1] );
+			$notices = (array) preg_split( '~[\r\n]+~', trim( $matches[2] ) );
+
+			if ( version_compare( $bnstd_data['Version'], $version, '<' ) ) {
+
+				/** @var string $upgrade_notice - start building message (inline styles) */
+				$upgrade_notice = '<style type="text/css">
+							.bnstd_plugin_upgrade_notice { padding-top: 20px; }
+							.bnstd_plugin_upgrade_notice ul { width: 50%; list-style: disc; margin-left: 20px; margin-top: 0; }
+							.bnstd_plugin_upgrade_notice li { margin: 0; }
+						</style>';
+
+				/** @var string $upgrade_notice - start building message (begin block) */
+				$upgrade_notice .= '<div class="bnstd_plugin_upgrade_notice">';
+
+				$ul = false;
+
+				foreach ( $notices as $index => $line ) {
+
+					if ( preg_match( '~^=\s*(.*)\s*=$~i', $line ) ) {
+
+						if ( $ul ) {
+							$upgrade_notice .= '</ul><div style="clear: left;"></div>';
+						}
+						/** End if - unordered list created */
+
+						$upgrade_notice .= '<hr/>';
+
+					}
+					/** End if - non-blank line */
+
+					/** @var string $return_value - body of message */
+					$return_value = '';
+
+					if ( preg_match( '~^\s*\*\s*~', $line ) ) {
+
+						if ( ! $ul ) {
+							$return_value = '<ul">';
+							$ul           = true;
+						}
+						/** End if - unordered list not started */
+
+						$line = preg_replace( '~^\s*\*\s*~', '', htmlspecialchars( $line ) );
+						$return_value .= '<li style=" ' . ( $index % 2 == 0 ? 'clear: left;' : '' ) . '">' . $line . '</li>';
+
+					} else {
+
+						if ( $ul ) {
+							$return_value = '</ul><div style="clear: left;"></div>';
+							$return_value .= '<p>' . $line . '</p>';
+							$ul = false;
+						} else {
+							$return_value .= '<p>' . $line . '</p>';
+						}
+						/** End if - unordered list started */
+
+					}
+					/** End if - non-blank line */
+
+					$upgrade_notice .= wp_kses_post( preg_replace( '~\[([^\]]*)\]\(([^\)]*)\)~', '<a href="${2}">${1}</a>', $return_value ) );
+
+				}
+				/** End foreach - line parsing */
+
+				$upgrade_notice .= '</div>';
+
+			}
+			/** End if - version compare */
+
+		}
+		/** End if - response message exists */
+
+		/** Set transient - minimize calls to WordPress */
+		set_transient( $transient_name, $upgrade_notice, DAY_IN_SECONDS );
+
+	}
+	/** End if - transient check */
+
+	echo $upgrade_notice;
+
+}
+
+/** End function - in plugin update message */
+
+
+/** Add Plugin Update Message */
+add_action( 'in_plugin_update_message-' . plugin_basename( __FILE__ ), 'BNS_Theme_Details_in_plugin_update_message' );

@@ -1,10 +1,10 @@
 === BNS Theme Details ===
 Contributors: cais
 Donate link: http://buynowshop.com/
-Tags: themes, counter, plugin, widget, shortcode, details, download, author, update, rating
-Requires at least: 3.4
+Tags: themes details, themes, plugin, widget, shortcode, details, download, author, update, rating, changelog, version
+Requires at least: 3.6
 Tested up to: 4.1
-Stable tag: 0.3
+Stable tag: 0.4
 License: GNU General Public License v2
 License URI: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -45,6 +45,7 @@ Shortcode parameters (and their defaults):
 * `show_description => true` ... displays theme description (this is false by default in the widget section)
 * `show_downloaded_count => true` ... displays the total download count
 * `use_download_link => true` ... displays a download link pointing to the current version of the theme in the WordPress Theme repository
+* `show_changelog => true` ... displays the contents of the theme's `changelog.txt` file if it exists
 
 == Frequently Asked Questions ==
 Q: Why am I not seeing any Theme Details?
@@ -76,9 +77,31 @@ This plugin currently only handles those themes that can be found in the WordPre
   http://www.gnu.org/licenses/gpl-2.0.html
 
 == Upgrade Notice ==
-Please stay current with your WordPress installation, your active theme, and your plugins.
+= 0.4 =
+* Now requires WordPress Version 3.6 or higher
+* New in plugin update message code added
+* Added some default styles
+* Please stay current with your WordPress installation, your active theme, and your active plugins.
 
 == Changelog ==
+= 0.4 =
+* Released December 2014
+* Added "in plugin update message" functionality
+* Added changelog to output (requires theme to use `changelog.txt` file)
+* Added enqueue statement for scripts and styles
+* Added CONSTANTS for "DRY" purposes and customization paths
+* Added more specificity to the output for more finely tuned styles
+* Added plugin "icon" assets
+* Change sanity check to ensure `$theme_slug` is not empty versus not `null`
+* Corrected shortcode filter reference to indicate `bns_theme_details`
+* Corrected conditional statements (changed `===` to `==`)
+* Modified `textdomain` to use full plugin slug `bns-theme-details`
+* Spice things up by leveraging BNS Inline Asides to minimize the Changelog display
+* Switched order of "Theme Name and Author" with the "Screenshot"
+* Updated required version to 3.6 in reference to the shortcode filter option
+* Updated `exit_message` if WordPress version is too low
+* Wrapped `<img />` tag in a `<p />` tag for better display compatibility
+
 = 0.3 =
 * Released February 2014
 * Correct shortcode parameters not recognizing boolean checks
